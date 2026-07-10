@@ -1,0 +1,15 @@
+.venv/
+.venv*/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+scratch/
+invalid_files/
+*.keras
+*.exe
+*.dll
+*.log
+
