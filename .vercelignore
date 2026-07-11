@@ -1,0 +1,10 @@
+# Ignore Python backend files so Vercel only deploys the static TFJS frontend
+app.py
+dust_detector.py
+export_tfjs.py
+requirements.txt
+*.keras
+*.py
+__pycache__/
+.venv/
+venv/
