@@ -16,15 +16,20 @@ SAMPLE_DUSTY_PATH = ROOT / "sample_dusty.jpg"
 # Configure TensorFlow settings for stable inference
 tf.config.set_visible_devices([], 'GPU') # CPU inference is fine and stable for single images
 
-print("Loading TensorFlow InceptionV3 model from:", MODEL_PATH)
-if not MODEL_PATH.exists():
-    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}. Make sure it is trained first.")
-
-# Load the trained model
-model = keras.models.load_model(MODEL_PATH)
 class_names = ["Clean", "Dusty"]
 IMAGE_SIZE = (224, 224)
-print("Model loaded successfully. Ready for inference.")
+model = None
+
+print("Checking for local Keras model at:", MODEL_PATH)
+if MODEL_PATH.exists():
+    try:
+        model = keras.models.load_model(MODEL_PATH)
+        print("Model loaded successfully. Ready for backend inference.")
+    except Exception as e:
+        print(f"Warning: Could not load Keras model ({e}). Backend will fallback to browser TFJS inference.")
+else:
+    print("Notice: dust_detector_model.keras not found locally (normal for Git clones). Server starting cleanly; frontend will automatically use client-side TFJS browser AI!")
+
 
 # Initialize Flask
 app = Flask(__name__, template_folder=str(ROOT / "templates"), static_folder=str(ROOT / "static"))
@@ -81,8 +86,16 @@ def predict():
         resized = cv2.resize(img_rgb, IMAGE_SIZE)
         prepared = keras.applications.inception_v3.preprocess_input(resized.astype("float32"))
         
+        if model is None:
+            return jsonify({
+                "error": "Local Keras model not loaded. Frontend will run TFJS client-side prediction automatically.",
+                "success": False,
+                "fallback_tfjs": True
+            }), 503
+
         # Run inference
         pred = model.predict(np.expand_dims(prepared, axis=0), verbose=0)[0]
+
         idx = int(np.argmax(pred))
         confidence = float(pred[idx]) * 100
         label = class_names[idx]
