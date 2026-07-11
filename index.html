@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urban AI — Solar Panel Dust Detection</title>
+  <meta name="description" content="AI-powered real-time solar panel dust detection system using InceptionV3 deep learning. Upload or capture an image to instantly classify clean vs dusty panels." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="static/style.css" />
+
+</head>
+<body>
+
+  <!-- Animated particle canvas background -->
+  <canvas id="particleCanvas" aria-hidden="true"></canvas>
+
+  <!-- ══════════════════════════════════════════════════════ HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo-group">
+        <div class="logo-icon" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="14" width="36" height="24" rx="3" fill="url(#panelGrad)" opacity="0.9"/>
+            <line x1="14" y1="14" x2="14" y2="38" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+            <line x1="26" y1="14" x2="26" y2="38" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+            <line x1="2" y1="23" x2="38" y2="23" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+            <line x1="2" y1="32" x2="38" y2="32" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+            <!-- Sun rays -->
+            <circle cx="20" cy="7" r="3" fill="#FFD700"/>
+            <line x1="20" y1="1" x2="20" y2="3" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="26" y1="3" x2="24.8" y2="4.2" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="28" y1="8" x2="26" y2="8" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="14" y1="1" x2="15.2" y2="4.2" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="12" y1="8" x2="14" y2="8" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="panelGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1a6fb5"/>
+                <stop offset="100%" stop-color="#0d3d6b"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <span class="logo-title">Urban AI</span>
+          <span class="logo-subtitle">Solar Panel Dust Detection</span>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge badge--model">InceptionV3</span>
+        <span class="badge badge--live" id="modelStatusBadge">⬤ Loading…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════ HERO BANNER -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1 class="hero-title">
+        AI-Powered<br/>
+        <span class="gradient-text">Solar Panel Analysis</span>
+      </h1>
+      <p class="hero-desc">
+        Detect dust accumulation on solar panels instantly using deep learning.
+        Upload a photo, capture from your webcam, or try our demo samples.
+      </p>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat__value">InceptionV3</span>
+          <span class="hero-stat__label">Architecture</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat__value">Binary</span>
+          <span class="hero-stat__label">Classification</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat__value">Real-time</span>
+          <span class="hero-stat__label">Inference</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ MAIN GRID -->
+  <main class="main-grid">
+
+    <!-- ── LEFT COLUMN: INPUT PANEL ─────────────────────────────────── -->
+    <div class="panel panel--input">
+      <div class="panel__header">
+        <h2 class="panel__title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Image Input
+        </h2>
+        <div class="tab-group" role="tablist">
+          <button id="tabUpload" class="tab tab--active" role="tab" aria-selected="true" aria-controls="panelUpload" onclick="switchTab('upload')">Upload</button>
+          <button id="tabWebcam" class="tab" role="tab" aria-selected="false" aria-controls="panelWebcam" onclick="switchTab('webcam')">Webcam</button>
+          <button id="tabDemo" class="tab" role="tab" aria-selected="false" aria-controls="panelDemo" onclick="switchTab('demo')">Demo</button>
+        </div>
+      </div>
+
+      <!-- Upload Tab -->
+      <div id="panelUpload" class="tab-panel tab-panel--active" role="tabpanel">
+        <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)" role="button" tabindex="0" aria-label="Drop zone: click or drag an image here">
+          <div class="drop-zone__icon" id="dropIcon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <p class="drop-zone__title" id="dropTitle">Drop image here</p>
+          <p class="drop-zone__subtitle">or click to browse  ·  JPG, PNG, WEBP</p>
+          <input type="file" id="fileInput" accept="image/*" hidden onchange="onFileSelected(event)" />
+        </div>
+        <div id="previewContainer" class="preview-container hidden">
+          <img id="previewImg" class="preview-img" alt="Selected solar panel image" />
+          <button class="btn btn--ghost btn--sm" onclick="clearPreview()" id="clearBtn">✕ Clear</button>
+        </div>
+        <button class="btn btn--primary btn--full" id="analyseUploadBtn" onclick="analyseUpload()" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Analyse Image
+        </button>
+      </div>
+
+      <!-- Webcam Tab -->
+      <div id="panelWebcam" class="tab-panel" role="tabpanel">
+        <div class="webcam-container">
+          <video id="webcamVideo" class="webcam-feed" autoplay playsinline muted aria-label="Webcam feed"></video>
+          <canvas id="webcamCanvas" class="hidden" aria-hidden="true"></canvas>
+          <div class="webcam-overlay" id="webcamOverlay">
+            <div class="webcam-overlay__icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <p>Click below to start webcam</p>
+          </div>
+        </div>
+        <div class="webcam-controls">
+          <button class="btn btn--secondary" id="startWebcamBtn" onclick="startWebcam()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            Start Camera
+          </button>
+          <button class="btn btn--primary" id="captureBtn" onclick="captureWebcam()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            Capture &amp; Analyse
+          </button>
+        </div>
+      </div>
+
+      <!-- Demo Tab -->
+      <div id="panelDemo" class="tab-panel" role="tabpanel">
+        <p class="demo-desc">Try the model with our built-in sample images from the training dataset.</p>
+        <div class="demo-grid">
+          <div class="demo-card" id="demoCleanCard">
+            <div class="demo-card__img-wrap">
+              <img src="/sample/clean" class="demo-card__img" alt="Clean solar panel sample" onerror="this.parentElement.innerHTML='<div class=\'demo-card__placeholder\'>🔆</div>'" />
+              <div class="demo-card__badge demo-card__badge--clean">Clean</div>
+            </div>
+            <p class="demo-card__label">Clean Panel</p>
+            <button class="btn btn--success btn--full" onclick="analyseDemo('clean')" id="btnDemoClean">
+              Analyse Sample
+            </button>
+          </div>
+          <div class="demo-card" id="demoDustyCard">
+            <div class="demo-card__img-wrap">
+              <img src="/sample/dusty" class="demo-card__img" alt="Dusty solar panel sample" onerror="this.parentElement.innerHTML='<div class=\'demo-card__placeholder\'>🌫️</div>'" />
+              <div class="demo-card__badge demo-card__badge--dusty">Dusty</div>
+            </div>
+            <p class="demo-card__label">Dusty Panel</p>
+            <button class="btn btn--warning btn--full" onclick="analyseDemo('dusty')" id="btnDemoDusty">
+              Analyse Sample
+            </button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /panel--input -->
+
+    <!-- ── RIGHT COLUMN: RESULT PANEL ────────────────────────────────── -->
+    <div class="panel panel--result">
+      <div class="panel__header">
+        <h2 class="panel__title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Analysis Result
+        </h2>
+      </div>
+
+      <!-- Idle state -->
+      <div id="resultIdle" class="result-idle">
+        <div class="result-idle__icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <p class="result-idle__text">Submit an image to see the analysis result</p>
+      </div>
+
+      <!-- Loading state -->
+      <div id="resultLoading" class="result-loading hidden">
+        <div class="spinner">
+          <div class="spinner__ring"></div>
+          <div class="spinner__ring spinner__ring--2"></div>
+        </div>
+        <p class="result-loading__text">Analysing image…</p>
+      </div>
+
+      <!-- Result display -->
+      <div id="resultDisplay" class="result-display hidden">
+        <!-- Confidence ring -->
+        <div class="confidence-ring-wrap">
+          <svg class="confidence-ring" viewBox="0 0 160 160" aria-hidden="true">
+            <circle class="confidence-ring__bg" cx="80" cy="80" r="68"/>
+            <circle class="confidence-ring__fill" id="ringFill" cx="80" cy="80" r="68"
+              stroke-dasharray="427.26"
+              stroke-dashoffset="427.26"
+              transform="rotate(-90 80 80)"/>
+          </svg>
+          <div class="confidence-ring__center">
+            <span class="confidence-value" id="confidenceValue">0%</span>
+            <span class="confidence-label">Confidence</span>
+          </div>
+        </div>
+
+        <!-- Status badge -->
+        <div class="status-badge-wrap">
+          <div class="status-badge" id="statusBadge">
+            <span class="status-badge__icon" id="statusIcon">⬤</span>
+            <span class="status-badge__text" id="statusText">—</span>
+          </div>
+        </div>
+
+        <!-- Detail cards -->
+        <div class="detail-cards">
+          <div class="detail-card">
+            <span class="detail-card__label">Classification</span>
+            <span class="detail-card__value" id="detailClass">—</span>
+          </div>
+          <div class="detail-card">
+            <span class="detail-card__label">Confidence</span>
+            <span class="detail-card__value" id="detailConf">—</span>
+          </div>
+          <div class="detail-card">
+            <span class="detail-card__label">Model</span>
+            <span class="detail-card__value">InceptionV3</span>
+          </div>
+          <div class="detail-card">
+            <span class="detail-card__label">Timestamp</span>
+            <span class="detail-card__value" id="detailTime">—</span>
+          </div>
+        </div>
+
+        <!-- Recommendation -->
+        <div class="recommendation" id="recommendation"></div>
+      </div><!-- /resultDisplay -->
+
+      <!-- Error state -->
+      <div id="resultError" class="result-error hidden">
+        <div class="result-error__icon">⚠️</div>
+        <p class="result-error__msg" id="errorMsg">An error occurred. Please try again.</p>
+        <button class="btn btn--ghost btn--sm" onclick="resetResult()">Dismiss</button>
+      </div>
+    </div><!-- /panel--result -->
+
+    <!-- ── BOTTOM: PREDICTION HISTORY ────────────────────────────────── -->
+    <div class="panel panel--history">
+      <div class="panel__header">
+        <h2 class="panel__title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.8"/></svg>
+          Prediction History
+        </h2>
+        <button class="btn btn--ghost btn--sm" onclick="clearHistory()" id="clearHistoryBtn" style="display:none">Clear</button>
+      </div>
+      <div id="historyEmpty" class="history-empty">
+        <p>No predictions yet. Run an analysis to see history here.</p>
+      </div>
+      <ul class="history-list" id="historyList" role="list"></ul>
+    </div>
+
+    <!-- ── BOTTOM: SYSTEM INFO ────────────────────────────────────────── -->
+    <div class="panel panel--info">
+      <div class="panel__header">
+        <h2 class="panel__title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          System Info
+        </h2>
+      </div>
+      <ul class="info-list">
+        <li class="info-item">
+          <span class="info-item__key">Framework</span>
+          <span class="info-item__val info-item__val--tag">TensorFlow / Keras</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Architecture</span>
+          <span class="info-item__val info-item__val--tag">InceptionV3</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Input Size</span>
+          <span class="info-item__val info-item__val--mono">224 × 224 px</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Classes</span>
+          <span class="info-item__val">Clean · Dusty</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Transfer Learning</span>
+          <span class="info-item__val">ImageNet pretrained</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Server</span>
+          <span class="info-item__val info-item__val--mono">Flask · port 5000</span>
+        </li>
+        <li class="info-item">
+          <span class="info-item__key">Compute</span>
+          <span class="info-item__val">CPU inference</span>
+        </li>
+      </ul>
+      <div class="info-tip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        <p>For best results, use clear overhead photos of the solar panel surface under good lighting.</p>
+      </div>
+    </div>
+
+  </main><!-- /main-grid -->
+
+  <!-- ══════════════════════════════════════════════════════ FOOTER -->
+  <footer class="site-footer">
+    <p>Urban AI &mdash; Solar Panel Dust Detection &copy; 2025 &middot; Powered by TensorFlow InceptionV3</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="static/app.js"></script>
+</body>
+</html>
+

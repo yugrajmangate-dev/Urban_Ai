@@ -30,16 +30,47 @@ document.addEventListener("DOMContentLoaded", () => {
 // ══════════════════════════════════════════════════════════════════
 // MODEL READINESS CHECK
 // ══════════════════════════════════════════════════════════════════
+let tfjsModel = null;
+let useClientSideAI = false;
+
+async function loadTFJSModel() {
+  if (!tfjsModel && typeof tf !== "undefined") {
+    try {
+      console.log("Loading TensorFlow.js web graph model...");
+      tfjsModel = await tf.loadGraphModel("static/tfjs_model/model.json");
+      console.log("TFJS Model loaded locally in browser!");
+    } catch (e) {
+      console.warn("Could not load TFJS model:", e);
+    }
+  }
+  return tfjsModel;
+}
+
 async function checkModelReady() {
   const badge = document.getElementById("modelStatusBadge");
   badge.classList.add("loading");
   badge.textContent = "⬤ Checking…";
 
+  // Check if we can load TFJS model first (Static/Vercel/Client-side)
+  if (typeof tf !== "undefined") {
+    try {
+      await loadTFJSModel();
+      if (tfjsModel) {
+        useClientSideAI = true;
+        badge.textContent = "⬤ Model Ready (Browser AI)";
+        badge.classList.remove("loading");
+        badge.style.color = "#4ade80";
+        return;
+      }
+    } catch (e) {
+      console.warn("TFJS load error, checking Flask backend...", e);
+    }
+  }
+
   try {
-    // Ping the index route — if Flask loaded without error, model is ready
-    const resp = await fetch("/", { method: "HEAD" });
-    if (resp.ok) {
-      badge.textContent = "⬤ Model Ready";
+    const resp = await fetch("/predict", { method: "OPTIONS" });
+    if (resp.ok || resp.status === 405 || resp.status === 200) {
+      badge.textContent = "⬤ Model Ready (Flask API)";
       badge.classList.remove("loading");
       badge.style.color = "#4ade80";
     } else {
@@ -51,6 +82,7 @@ async function checkModelReady() {
     badge.style.color = "#ef4444";
   }
 }
+
 
 // ══════════════════════════════════════════════════════════════════
 // TAB SWITCHING
@@ -206,7 +238,59 @@ function analyseDemo(source) {
 // ══════════════════════════════════════════════════════════════════
 // CORE: CALL /predict API
 // ══════════════════════════════════════════════════════════════════
+async function runClientSidePrediction(payload) {
+  showLoading();
+  setButtonsLoading(true);
+  try {
+    let imgElement = new Image();
+    imgElement.crossOrigin = "anonymous";
+
+    let srcUrl = null;
+    if (payload.image) {
+      srcUrl = payload.image.includes(",") ? payload.image : "data:image/jpeg;base64," + payload.image;
+    } else if (payload.source) {
+      if (payload.source === "clean") srcUrl = "sample_clean.jpg";
+      else if (payload.source === "dusty") srcUrl = "sample_dusty.jpg";
+    }
+
+    if (!srcUrl) throw new Error("No image data found for analysis.");
+
+    await new Promise((resolve, reject) => {
+      imgElement.onload = resolve;
+      imgElement.onerror = () => reject(new Error("Failed to load image element for TFJS."));
+      imgElement.src = srcUrl;
+    });
+
+    const prediction = tf.tidy(() => {
+      const tensor = tf.browser.fromPixels(imgElement);
+      const resized = tf.image.resizeBilinear(tensor, [224, 224]);
+      const prepared = resized.toFloat().div(127.5).sub(1.0);
+      const batched = prepared.expandDims(0);
+      return tfjsModel.predict(batched);
+    });
+
+    const scores = await prediction.data();
+    prediction.dispose();
+
+    let idx = scores[1] > scores[0] ? 1 : 0;
+    let label = idx === 1 ? "Dusty" : "Clean";
+    let confidence = Math.round(scores[idx] * 10000) / 100;
+
+    showResult(label, confidence);
+    addToHistory(label, confidence);
+  } catch (err) {
+    console.error("TFJS Prediction Error:", err);
+    showError("Client-side AI inference failed: " + err.message);
+  } finally {
+    setButtonsLoading(false);
+  }
+}
+
 async function callPredict(payload) {
+  if (useClientSideAI && tfjsModel) {
+    return runClientSidePrediction(payload);
+  }
+
   showLoading();
   setButtonsLoading(true);
 
@@ -228,11 +312,20 @@ async function callPredict(payload) {
     addToHistory(data.status, data.confidence);
 
   } catch (err) {
+    if (typeof tf !== "undefined") {
+      await loadTFJSModel();
+      if (tfjsModel) {
+        useClientSideAI = true;
+        setButtonsLoading(false);
+        return runClientSidePrediction(payload);
+      }
+    }
     showError("Network error: could not reach the server. Is Flask running?");
   } finally {
     setButtonsLoading(false);
   }
 }
+
 
 // ══════════════════════════════════════════════════════════════════
 // RESULT DISPLAY
